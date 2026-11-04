@@ -13,7 +13,7 @@ A.2. Change the implementation so that a thread can send a message in broadcast 
 using namespace std;
 
 
-mutex mtx1; // TODO - convert to class - queue of messages + relevant mtx
+mutex mtx1; // TODO - convert to class - queue of messages + relevant lock_guard mtx
 mutex mtx2;
 
 int count = 0;
