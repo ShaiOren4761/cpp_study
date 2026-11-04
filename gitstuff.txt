@@ -1,0 +1,9 @@
+PUSH -
+git add -A
+git commit -m "Updated practice"
+git push
+
+
+download and overwrite - 
+git fetch origin
+git reset --hard origin/main
