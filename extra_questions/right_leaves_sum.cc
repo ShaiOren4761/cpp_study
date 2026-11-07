@@ -15,7 +15,7 @@ int sumOfRightLeaves(TreeNode* root){
     if (!root) return 0;
 
     if (root->right && (!root->right->right && !root->right->left)){ // Right Leaf check
-        return root->right->val + sumOfRightLeaves(root->left);// + sumOfRightLeaves(root->right);
+        return root->right->val + sumOfRightLeaves(root->left);
     }
     else return sumOfRightLeaves(root->left) + sumOfRightLeaves(root->right);
 }

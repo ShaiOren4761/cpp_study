@@ -1,3 +1,5 @@
+// Totally not an Nvidia interview question - 
+
 /*A.1. Implement a program where there are three threads that are exchanging messages.
 - Message body is std::string.- Messages are p2p and have a destination index.
 - Each thread reads the messages sent to its index and prints message bodies and then adds a random number of messages,
@@ -10,35 +12,34 @@ A.2. Change the implementation so that a thread can send a message in broadcast 
 #include <thread>
 #include <vector>
 #include <mutex>
+#include <condition_variable>
 using namespace std;
 
+int counter; // Message num for debuggning
 
-mutex mtx1; // TODO - convert to class - queue of messages + relevant lock_guard mtx
-mutex mtx2;
+class peer{ // message thread. Got a better name? Send suggestions at shaioren100@gmail.com
+    public:
+        static vector<peer>peers; // Do not resize during runtime, papa GPT says it's not safe with running threads.
 
-int count = 0;
+        int ID;
+        vector<string>inbox;
+        mutex myMutex;
+        condition_variable cv;
 
-void send_message(int i, vector<vector<string>>&inboxes);
-void read_messages(int i, vector<vector<string>>&inboxes);
+        void send_message(int target);
+        void read_messages();
+};
+
+
 
 int main(){
 
-    // Init inboxes
-    vector<vector<string>> inboxes; // TODO vector<queue<string>>
-    
-    vector<string>t1_in;
-    vector<string>t2_in;
-    inboxes.push_back(t1_in);
-    inboxes.push_back(t2_in);
-  
-    // Launch threads
-    thread t1(send_message, 1, ref(inboxes));
-    thread t2(send_message, 2, ref(inboxes));
- 
-    t1.join();
-    t2.join();
 
-    
+    peer p1;
+    p1.ID = 0;
+
+    peer::peers.push_back();
+    peer::peers.push_back();
     // PSEUDO
     // send message to queue[i]
     // in thread i : 
@@ -50,27 +51,28 @@ int main(){
 }
 
 
-void send_message(int i, vector<vector<string>>&inboxes){
-    lock_guard<mutex>lock(mtx);
-
-    // determine destination (2 threads..)
-    int j = 1;
-    if (i == 1) j = 2;
-
-
-    // insert message in inbox
-    cout << i << " sent to "<< j << "\n";
-    inboxes[j-1].push_back("message from " + to_string(i) + " , message: " + to_string(count++));
+void peer::send_message(int target){
+    unique_lock<mutex>lock(this->peers[target].myMutex); // Get access to target inbox. Block for others once inside.
     
-    // launch message read - HOW DOES ONE NOTIFY ANOTHER THREAD TO DO A THING?
-    if (count < 2) read_messages(j-1, inboxes);
-}
+    // insert message in inbox
+    cout << this->ID << " sent to "<< target << "\n";
+    this->peers[target].inbox.push_back("message from " + to_string(this->ID) + " , message: " + to_string(counter++));
+    
+    // notify target
+    this->peers[target].cv.notify_one();
 
-void read_messages(int i, vector<vector<string>>&inboxes){
-    mtx.lock();
+    // enter wait state for messages
+    this->read_messages();
+};
 
-    cout << i << " read message in queue " << "\n";
-    cout << inboxes[i][0];
+void peer::read_messages(){
+    unique_lock<mutex>lock(this->myMutex); // Wait for other treads to release access. Block once reading.
 
-    mtx.unlock(); 
-}
+    cout << this->ID << " is reading messages in queue " << "\n";
+    
+    for (string message: this->inbox){
+        cout << this->ID << " is reading: " << message;
+    }
+
+    // CONTINUE SENDING MESSAGES
+};
