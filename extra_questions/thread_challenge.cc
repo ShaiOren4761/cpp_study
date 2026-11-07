@@ -13,33 +13,54 @@ A.2. Change the implementation so that a thread can send a message in broadcast 
 #include <vector>
 #include <mutex>
 #include <condition_variable>
+#include <atomic>
 using namespace std;
 
-int counter; // Message num for debuggning
+atomic<int> counter{0}; // Message num for debugging
 
-class peer{ // message thread. Got a better name? Send suggestions at shaioren100@gmail.com
+class peer{
     public:
         static vector<peer>peers; // Do not resize during runtime, papa GPT says it's not safe with running threads.
 
-        int ID;
+        // attributes
+        int ID = -1;
         vector<string>inbox;
+        
+        // thread safety tools
         mutex myMutex;
         condition_variable cv;
-
+        
+        // methods
         void send_message(int target);
         void read_messages();
 };
 
+// Declare in class, define in namespace, use in Main -> ???????????
+vector<peer> peer::peers(2); // 2 peers
 
 
 int main(){
 
+    // Testing for 2 peers
 
-    peer p1;
-    p1.ID = 0;
+    peer::peers[0].ID = 0;
+    peer::peers[1].ID = 1;
 
-    peer::peers.push_back();
-    peer::peers.push_back();
+    // Launch threads
+    vector<thread> threads;
+
+    threads.emplace_back(&peer::send_message, &peer::peers[0], 1);
+    threads.emplace_back(&peer::read_messages, &peer::peers[1]);
+
+    /*
+    for (peer& p : peer::peers) {
+        threads.emplace_back(&peer::read_messages, &p);
+    }
+    */
+    for (thread& t : threads) {
+        t.join();
+    }
+
     // PSEUDO
     // send message to queue[i]
     // in thread i : 
@@ -52,27 +73,35 @@ int main(){
 
 
 void peer::send_message(int target){
-    unique_lock<mutex>lock(this->peers[target].myMutex); // Get access to target inbox. Block for others once inside.
-    
+    { // lock scope start
+    lock_guard<mutex>lock(this->peers[target].myMutex); // Get access to target inbox. Block for others once inside.
+
     // insert message in inbox
     cout << this->ID << " sent to "<< target << "\n";
-    this->peers[target].inbox.push_back("message from " + to_string(this->ID) + " , message: " + to_string(counter++));
+    this->peers[target].inbox.push_back("message from " + to_string(this->ID) + " , message: " + to_string(counter.fetch_add(1)));
     
     // notify target
     this->peers[target].cv.notify_one();
+    
+    } // lock scope end
 
     // enter wait state for messages
     this->read_messages();
 };
 
 void peer::read_messages(){
+    { // lock scope start
     unique_lock<mutex>lock(this->myMutex); // Wait for other treads to release access. Block once reading.
+    this->cv.wait(lock, [this] {return !inbox.empty();});
 
     cout << this->ID << " is reading messages in queue " << "\n";
     
     for (string message: this->inbox){
-        cout << this->ID << " is reading: " << message;
+        cout << this->ID << " is reading: " << message << "\n";
     }
+    
+    this->inbox.clear();
+    } // lock scope end
 
-    // CONTINUE SENDING MESSAGES
+    if (counter < 5) this->send_message((this->ID-1)*-1); // temp for 2 peers. 0 - 1 * -1 = 1. 1 - 1 * -1 = 0.
 };
