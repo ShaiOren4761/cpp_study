@@ -39,7 +39,7 @@ class peer{
 };
 
 // Declare in class, define in namespace, use in Main -> Profit
-vector<peer> peer::peers(3); // 2 peers
+vector<peer> peer::peers(3);
 
 atomic<int> counter{0}; // Message num for debugging
 
