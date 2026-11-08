@@ -14,9 +14,11 @@ A.2. Change the implementation so that a thread can send a message in broadcast 
 #include <mutex>
 #include <condition_variable>
 #include <atomic>
+#include <cstdlib>
+#include <syncstream>
+#include <queue>
 using namespace std;
 
-atomic<int> counter{0}; // Message num for debugging
 
 class peer{
     public:
@@ -24,84 +26,114 @@ class peer{
 
         // attributes
         int ID = -1;
-        vector<string>inbox;
+        queue<string>inbox;
         
         // thread safety tools
         mutex myMutex;
         condition_variable cv;
         
         // methods
-        void send_message(int target);
+        void message_loop();
+        void send_message(int target, int amount);
         void read_messages();
 };
 
-// Declare in class, define in namespace, use in Main -> ???????????
-vector<peer> peer::peers(2); // 2 peers
+// Declare in class, define in namespace, use in Main -> Profit
+vector<peer> peer::peers(3); // 2 peers
+
+atomic<int> counter{0}; // Message num for debugging
 
 
 int main(){
 
-    // Testing for 2 peers
-
-    peer::peers[0].ID = 0;
-    peer::peers[1].ID = 1;
+    // Set peer ID
+    int ID{};
+    for (peer& p : peer::peers) {
+        p.ID = ID++;
+    }
 
     // Launch threads
     vector<thread> threads;
-
-    threads.emplace_back(&peer::send_message, &peer::peers[0], 1);
-    threads.emplace_back(&peer::read_messages, &peer::peers[1]);
-
-    /*
     for (peer& p : peer::peers) {
-        threads.emplace_back(&peer::read_messages, &p);
+        threads.emplace_back(&peer::message_loop, &p);
     }
-    */
+
     for (thread& t : threads) {
         t.join();
     }
 
     // PSEUDO
-    // send message to queue[i]
-    // in thread i : 
-        // read message in queue - block incoming traffic while reading
+    // all i peers send message to queue[j] j!=i
+    // all peers : 
+        // read message in queue
         // print each message from queue
-        // release block
+    // roll targets for more message sending
     
     return 0;
 }
 
 
-void peer::send_message(int target){
-    { // lock scope start
-    lock_guard<mutex>lock(this->peers[target].myMutex); // Get access to target inbox. Block for others once inside.
+void peer::message_loop(){
 
-    // insert message in inbox
-    cout << this->ID << " sent to "<< target << "\n";
-    this->peers[target].inbox.push_back("message from " + to_string(this->ID) + " , message: " + to_string(counter.fetch_add(1)));
-    
-    // notify target
-    this->peers[target].cv.notify_one();
-    
+    int target;
+    int amount_msg_total;
+    int amount_msg_t1;
+    int amount_msg_t2;
+    int limit = 5;
+
+    while(limit){
+        target = rand() % peer::peers.size(); // force new roll every iteration. Otherwise it stays stuck on 1 valid target.
+
+        // Roll message batches (Custom case for 3 peers! Does not scale!)
+            // Phase 1: Roll message amount
+            amount_msg_total = (rand() % 6) + 1; // I have to limit this otherwise it goes up to MAX INT. Kinda hard to debug that.
+            // Phase 2: Roll amount of messages to be sent to first target and calc msgs to 2nd target
+            amount_msg_t1 = amount_msg_total - (rand() % (amount_msg_total + 1));
+            amount_msg_t2 = amount_msg_total - amount_msg_t1;
+            // Phase 3: Roll first target
+            while (target == this->ID) target = rand() % peer::peers.size();
+            // Phase 4: send messages
+            if (amount_msg_t1) this->send_message(target, amount_msg_t1);
+            if (amount_msg_t2) this->send_message(3 - this->ID - target, amount_msg_t2);
+        
+        
+        this->read_messages();
+
+        limit--;
+    }
+}
+
+void peer::send_message(int target, int amount){
+    { // lock scope start
+
+        lock_guard<mutex>lock(this->peers[target].myMutex); // Get access to target inbox. Block for others once inside.
+
+        // insert message in inbox
+        osyncstream(cout) << this->ID << " is sending " << amount << " messages to "<< target << "\n";
+        for (int i=0; i<amount; i++){
+            this->peers[target].inbox.push("message from peer " + to_string(this->ID) + " , total message number: " + to_string(counter.fetch_add(1)));
+        }
+
     } // lock scope end
 
-    // enter wait state for messages
-    this->read_messages();
+    // notify target
+    this->peers[target].cv.notify_one();
 };
 
 void peer::read_messages(){
     { // lock scope start
-    unique_lock<mutex>lock(this->myMutex); // Wait for other treads to release access. Block once reading.
-    this->cv.wait(lock, [this] {return !inbox.empty();});
 
-    cout << this->ID << " is reading messages in queue " << "\n";
-    
-    for (string message: this->inbox){
-        cout << this->ID << " is reading: " << message << "\n";
-    }
-    
-    this->inbox.clear();
+        unique_lock<mutex>lock(this->myMutex); // Wait for other treads to release access. Block once reading.
+        this->cv.wait(lock, [this] {return !inbox.empty();});
+
+        osyncstream(cout) << this->ID << " is reading messages in queue " << "\n";
+        
+        while (!this->inbox.empty()){
+            string message = this->inbox.front();
+            osyncstream(cout) << this->ID << " is reading: " << message << "\n";
+            this->inbox.pop();
+        }
+
     } // lock scope end
 
-    if (counter < 5) this->send_message((this->ID-1)*-1); // temp for 2 peers. 0 - 1 * -1 = 1. 1 - 1 * -1 = 0.
 };

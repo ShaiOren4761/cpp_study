@@ -7,3 +7,26 @@ git push
 download and overwrite - 
 git fetch origin
 git reset --hard origin/main
+
+
+or just add these binds in bashrc:
+
+gpush() {
+    git add -A &&
+    (git diff --cached --quiet || git commit -m "Sync") &&
+    git push origin main
+}
+
+# Download and overwrite local files
+gpull() {
+    git fetch origin main &&
+    git reset --hard origin/main &&
+    git clean -fd
+}
+
+code ~/.bashrc
+add these at the bottom
+save and close
+source ~/.bashrc
+
+and now you can absolutely run over your current main by pushing this! Woohoo!
