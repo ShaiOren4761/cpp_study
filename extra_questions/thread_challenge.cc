@@ -158,8 +158,9 @@ void Peer::ReadMessages(){
 
 void Peer::Broadcast(){
     // Broadcast 1 message to all other peers
-    
+    int target = rand() % Peer::peers.size();
+    while (target == this->id_) target = rand() % Peer::peers.size();
+
     peers[target].InsertMessages(this->id_, 1);
     peers[3 - this->id_ - target].InsertMessages(this->id_, 1); 
-   
 }
