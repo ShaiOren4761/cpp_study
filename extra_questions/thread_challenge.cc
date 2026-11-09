@@ -20,26 +20,33 @@ A.2. Change the implementation so that a thread can send a message in broadcast 
 using namespace std;
 
 
-class peer{
+class Peer{
     public:
-        static vector<peer>peers; // Do not resize during runtime, papa GPT says it's not safe with running threads.
+        static vector<Peer>peers; // Do not resize during runtime, papa GPT says it's not safe with running threads.
 
+        // Construct Destruct
+        explicit Peer(int id) : id_(id) {}
+        ~Peer() = default;
+        // methods
+        void MessageLoop();
+        void SendMessages(int target, int amount);
+        void ReadMessages();
+        // getter
+        int GetID() {return this->id_;}
+
+    private:
         // attributes
-        int ID = -1;
-        queue<string>inbox;
+        int id_ = -1;
+        queue<string>inbox_;
         
         // thread safety tools
-        mutex myMutex;
-        condition_variable cv;
-        
-        // methods
-        void message_loop();
-        void send_message(int target, int amount);
-        void read_messages();
+        mutex my_mutex_;
+        condition_variable cv_;
+                    
 };
 
 // Declare in class, define in namespace, use in Main -> Profit
-vector<peer> peer::peers(3);
+vector<Peer> Peer::peers(3);
 
 atomic<int> counter{0}; // Message num for debugging
 
@@ -48,14 +55,14 @@ int main(){
 
     // Set peer ID
     int ID{};
-    for (peer& p : peer::peers) {
-        p.ID = ID++;
+    for (Peer& p : Peer::peers) {
+        p.id_ = ID++;
     }
 
     // Launch threads
     vector<thread> threads;
-    for (peer& p : peer::peers) {
-        threads.emplace_back(&peer::message_loop, &p);
+    for (Peer& p : Peer::peers) {
+        threads.emplace_back(&Peer::MessageLoop, &p);
     }
 
     for (thread& t : threads) {
@@ -73,7 +80,7 @@ int main(){
 }
 
 
-void peer::message_loop(){
+void Peer::MessageLoop(){
 
     int target;
     int amount_msg_total;
@@ -82,56 +89,56 @@ void peer::message_loop(){
     int limit = 5;
 
     while(limit){
-        target = rand() % peer::peers.size(); // force new roll every iteration. Otherwise it stays stuck on 1 valid target.
+        target = rand() % Peer::peers.size(); // force new roll every iteration. Otherwise it stays stuck on 1 valid target.
 
         // Roll message batches (Custom case for 3 peers! Does not scale!)
-            // Phase 1: Roll message amount
-            amount_msg_total = (rand() % 6) + 1; // I have to limit this otherwise it goes up to MAX INT. Kinda hard to debug that.
-            // Phase 2: Roll amount of messages to be sent to first target and calc msgs to 2nd target
-            amount_msg_t1 = amount_msg_total - (rand() % (amount_msg_total + 1));
-            amount_msg_t2 = amount_msg_total - amount_msg_t1;
-            // Phase 3: Roll first target
-            while (target == this->ID) target = rand() % peer::peers.size();
-            // Phase 4: send messages
-            if (amount_msg_t1) this->send_message(target, amount_msg_t1);
-            if (amount_msg_t2) this->send_message(3 - this->ID - target, amount_msg_t2);
+        // Phase 1: Roll message amount
+        amount_msg_total = (rand() % 6) + 1; // I have to limit this otherwise it goes up to MAX INT. Kinda hard to debug that.
+        // Phase 2: Roll amount of messages to be sent to first target and calc msgs to 2nd target
+        amount_msg_t1 = amount_msg_total - (rand() % (amount_msg_total + 1));
+        amount_msg_t2 = amount_msg_total - amount_msg_t1;
+        // Phase 3: Roll first target
+        while (target == this->id_) target = rand() % Peer::peers.size();
+        // Phase 4: send messages
+        if (amount_msg_t1) this->SendMessages(target, amount_msg_t1);
+        if (amount_msg_t2) this->SendMessages(3 - this->id_ - target, amount_msg_t2);
         
         
-        this->read_messages();
+        this->ReadMessages();
 
         limit--;
     }
 }
 
-void peer::send_message(int target, int amount){
+void Peer::SendMessages(int target, int amount){
     { // lock scope start
 
-        lock_guard<mutex>lock(this->peers[target].myMutex); // Get access to target inbox. Block for others once inside.
+        lock_guard<mutex>lock(this->peers[target].my_mutex_); // Get access to target inbox. Block for others once inside.
 
         // insert message in inbox
-        osyncstream(cout) << this->ID << " is sending " << amount << " messages to "<< target << "\n";
+        osyncstream(cout) << this->id_ << " is sending " << amount << " messages to "<< target << "\n";
         for (int i=0; i<amount; i++){
-            this->peers[target].inbox.push("message from peer " + to_string(this->ID) + " , total message number: " + to_string(counter.fetch_add(1)));
+            this->peers[target].inbox_.push("message from peer " + to_string(this->id_) + " , total message number: " + to_string(counter.fetch_add(1)));
         }
 
     } // lock scope end
 
     // notify target
-    this->peers[target].cv.notify_one();
+    this->peers[target].cv_.notify_one();
 };
 
-void peer::read_messages(){
+void Peer::ReadMessages(){
     { // lock scope start
 
-        unique_lock<mutex>lock(this->myMutex); // Wait for other treads to release access. Block once reading.
-        this->cv.wait(lock, [this] {return !inbox.empty();});
+        unique_lock<mutex>lock(this->my_mutex_); // Wait for other treads to release access. Block once reading.
+        this->cv_.wait(lock, [this] {return !inbox_.empty();});
 
-        osyncstream(cout) << this->ID << " is reading messages in queue " << "\n";
+        osyncstream(cout) << this->id_ << " is reading messages in queue " << "\n";
         
-        while (!this->inbox.empty()){
-            string message = this->inbox.front();
-            osyncstream(cout) << this->ID << " is reading: " << message << "\n";
-            this->inbox.pop();
+        while (!this->inbox_.empty()){
+            string message = this->inbox_.front();
+            osyncstream(cout) << this->id_ << " is reading: " << message << "\n";
+            this->inbox_.pop();
         }
 
     } // lock scope end
