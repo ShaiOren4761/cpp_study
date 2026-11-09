@@ -8,6 +8,14 @@
 A.2. Change the implementation so that a thread can send a message in broadcast mode to all other threads.*/
 
 
+// PSEUDO
+// all i peers send message to queue[j] j!=i
+// all peers : 
+    // read message in queue
+    // print each message from queue
+// roll targets for more message sending
+
+
 #include <iostream>
 #include <thread>
 #include <vector>
@@ -31,9 +39,9 @@ class Peer{
         void MessageLoop();
         void SendMessages(int target, int amount);
         void ReadMessages();
-        // getter
+        // getter setter
         int GetID() {return this->id_;}
-
+        void SetID(int id) {this->id_ = id;}
     private:
         // attributes
         int id_ = -1;
@@ -56,10 +64,10 @@ int main(){
     // Set peer ID
     int ID{};
     for (Peer& p : Peer::peers) {
-        p.id_ = ID++;
+        p.SetID(ID++);
     }
 
-    // Launch threads
+    // Launch and join threads
     vector<thread> threads;
     for (Peer& p : Peer::peers) {
         threads.emplace_back(&Peer::MessageLoop, &p);
@@ -69,13 +77,6 @@ int main(){
         t.join();
     }
 
-    // PSEUDO
-    // all i peers send message to queue[j] j!=i
-    // all peers : 
-        // read message in queue
-        // print each message from queue
-    // roll targets for more message sending
-    
     return 0;
 }
 
