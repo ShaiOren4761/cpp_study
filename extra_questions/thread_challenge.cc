@@ -9,10 +9,9 @@ A.2. Change the implementation so that a thread can send a message in broadcast 
 
 
 // PSEUDO
-// all i peers send message to queue[j] j!=i
-// all peers : 
-    // read message in queue
-    // print each message from queue
+// peer sends messages to other peers
+    // sender asks target to place messages in their queue
+// peer reads their own messages, prints, back to start
 // roll targets for more message sending
 
 
@@ -23,7 +22,6 @@ A.2. Change the implementation so that a thread can send a message in broadcast 
 #include <condition_variable>
 #include <atomic>
 #include <cstdlib>
-#include <syncstream>
 #include <queue>
 using namespace std;
 
@@ -32,13 +30,18 @@ class Peer{
     public:
         static vector<Peer>peers; // Do not resize during runtime, papa GPT says it's not safe with running threads.
 
-        // Construct Destruct
+        // Constructors Destructor
+        Peer() = default;
         explicit Peer(int id) : id_(id) {}
         ~Peer() = default;
+
         // methods
         void MessageLoop();
-        void SendMessages(int target, int amount);
+        void SendMessages();
+        void InsertMessages(int sender, int amount);
         void ReadMessages();
+        void Broadcast();
+
         // getter setter
         int GetID() {return this->id_;}
         void SetID(int id) {this->id_ = id;}
@@ -83,50 +86,56 @@ int main(){
 
 void Peer::MessageLoop(){
 
-    int target;
-    int amount_msg_total;
-    int amount_msg_t1;
-    int amount_msg_t2;
     int limit = 5;
 
     while(limit){
-        target = rand() % Peer::peers.size(); // force new roll every iteration. Otherwise it stays stuck on 1 valid target.
 
-        // Roll message batches (Custom case for 3 peers! Does not scale!)
-        // Phase 1: Roll message amount
-        amount_msg_total = (rand() % 6) + 1; // I have to limit this otherwise it goes up to MAX INT. Kinda hard to debug that.
-        // Phase 2: Roll amount of messages to be sent to first target and calc msgs to 2nd target
-        amount_msg_t1 = amount_msg_total - (rand() % (amount_msg_total + 1));
-        amount_msg_t2 = amount_msg_total - amount_msg_t1;
-        // Phase 3: Roll first target
-        while (target == this->id_) target = rand() % Peer::peers.size();
-        // Phase 4: send messages
-        if (amount_msg_t1) this->SendMessages(target, amount_msg_t1);
-        if (amount_msg_t2) this->SendMessages(3 - this->id_ - target, amount_msg_t2);
-        
-        
+        this->SendMessages();
         this->ReadMessages();
 
         limit--;
     }
 }
 
-void Peer::SendMessages(int target, int amount){
+void Peer::SendMessages(){ // sender asks target to place X messages in their queue
+    int target = rand() % Peer::peers.size();
+    int amount_msg_total;
+    int amount_msg_t1;
+    int amount_msg_t2;        
+
+    // Roll message batches (Custom case for 3 peers! Does not scale!)
+    
+    // Phase 1: Roll message amount
+    amount_msg_total = (rand() % 6) + 1; // 1 - 6 messages total. Arbitrary limit for debugging ease.
+
+    // Phase 2: Roll amount of messages to be sent to first target and calc msgs to 2nd target
+    amount_msg_t1 = amount_msg_total - (rand() % (amount_msg_total + 1));
+    amount_msg_t2 = amount_msg_total - amount_msg_t1;
+    
+    // Phase 3: Roll first target
+    while (target == this->id_) target = rand() % Peer::peers.size();
+    
+    // Phase 4: send messages
+    if (amount_msg_t1) peers[target].InsertMessages(this->id_, amount_msg_t1);
+    if (amount_msg_t2) peers[3 - this->id_ - target].InsertMessages(this->id_, amount_msg_t2); // index calc is just 0 + 1 + 2 = 3 parameterized.
+        
+};
+
+void Peer::InsertMessages(int sender, int amount){
     { // lock scope start
 
-        lock_guard<mutex>lock(this->peers[target].my_mutex_); // Get access to target inbox. Block for others once inside.
+        lock_guard<mutex>lock(this->my_mutex_);
 
-        // insert message in inbox
-        osyncstream(cout) << this->id_ << " is sending " << amount << " messages to "<< target << "\n";
+        cout << sender << " is sending " << amount << " messages to "<< this->id_ << "\n";
         for (int i=0; i<amount; i++){
-            this->peers[target].inbox_.push("message from peer " + to_string(this->id_) + " , total message number: " + to_string(counter.fetch_add(1)));
+            this->inbox_.push("message from peer " + to_string(sender) + " , total message number: " + to_string(counter.fetch_add(1)));
         }
 
     } // lock scope end
 
     // notify target
-    this->peers[target].cv_.notify_one();
-};
+    this->cv_.notify_one();
+}
 
 void Peer::ReadMessages(){
     { // lock scope start
@@ -134,14 +143,23 @@ void Peer::ReadMessages(){
         unique_lock<mutex>lock(this->my_mutex_); // Wait for other treads to release access. Block once reading.
         this->cv_.wait(lock, [this] {return !inbox_.empty();});
 
-        osyncstream(cout) << this->id_ << " is reading messages in queue " << "\n";
+        cout << this->id_ << " is reading messages in queue " << "\n";
         
         while (!this->inbox_.empty()){
             string message = this->inbox_.front();
-            osyncstream(cout) << this->id_ << " is reading: " << message << "\n";
+            cout << this->id_ << " is reading: " << message << "\n";
             this->inbox_.pop();
         }
 
     } // lock scope end
 
 };
+
+
+void Peer::Broadcast(){
+    // Broadcast 1 message to all other peers
+    
+    peers[target].InsertMessages(this->id_, 1);
+    peers[3 - this->id_ - target].InsertMessages(this->id_, 1); 
+   
+}
