@@ -30,7 +30,7 @@ class Peer{
 
         // Constructors Destructor
         Peer() : id_(id_gen++) {}
-        ~Peer() = default;
+        ~Peer() { t.~thread(); }
 
         // methods
         void MessageLoop();
@@ -67,7 +67,6 @@ atomic<int> counter{0}; // Message num for debugging
 
 int main(){
 
-
     // Launch and join threads
     for (Peer& p : Peer::peers) {
         p.InitThread();
@@ -83,14 +82,9 @@ int main(){
 
 void Peer::MessageLoop(){
 
-    int limit = 5;
-
-    while(limit){
-
-        this->SendMessages();
+    while(true){
+        if (rand()%2 == 0) this->SendMessages(); else this->Broadcast();
         this->ReadMessages();
-
-        limit--;
     }
 }
 
@@ -157,6 +151,7 @@ void Peer::Broadcast(){
     int target = rand() % Peer::peers.size();
     while (target == this->id_) target = rand() % Peer::peers.size();
 
+     cout << this->id_ << " is broadcasting to all peers" << "\n";
     peers[target].InsertMessages(this->id_, 1);
     peers[3 - this->id_ - target].InsertMessages(this->id_, 1); 
 }
