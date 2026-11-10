@@ -21,6 +21,7 @@ A.2. Change the implementation so that a thread can send a message in broadcast 
 #include <atomic>
 #include <cstdlib>
 #include <queue>
+#include <csignal>
 using namespace std;
 
 
