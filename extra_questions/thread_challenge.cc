@@ -1,5 +1,3 @@
-// Totally not an Nvidia interview question - 
-
 /*A.1. Implement a program where there are three threads that are exchanging messages.
 - Message body is std::string.- Messages are p2p and have a destination index.
 - Each thread reads the messages sent to its index and prints message bodies and then adds a random number of messages,
