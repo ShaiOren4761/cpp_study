@@ -162,7 +162,7 @@ void Peer::Broadcast(){
 }
 
 void Peer::InitThread(){
-    this->t = thread(&Peer::MessageLoop, this);
+    if (!this->t.joinable()) t = thread(&Peer::MessageLoop, this);
 }
 
 void Peer::JoinThread(){
