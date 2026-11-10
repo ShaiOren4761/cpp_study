@@ -29,8 +29,7 @@ class Peer{
         static vector<Peer>peers; // Do not resize during runtime, papa GPT says it's not safe with running threads.
 
         // Constructors Destructor
-        Peer() = default;
-        explicit Peer(int id) : id_(id) {}
+        Peer() : id_(id_gen++) {}
         ~Peer() = default;
 
         // methods
@@ -39,14 +38,19 @@ class Peer{
         void InsertMessages(int sender, int amount);
         void ReadMessages();
         void Broadcast();
+        void InitThread();
+        void JoinThread();
 
         // getter setter
         int GetID() {return this->id_;}
         void SetID(int id) {this->id_ = id;}
+
     private:
+        static int id_gen;
         // attributes
         int id_ = -1;
         queue<string>inbox_;
+        thread t;
         
         // thread safety tools
         mutex my_mutex_;
@@ -56,26 +60,21 @@ class Peer{
 
 // Declare in class, define in namespace, use in Main -> Profit
 vector<Peer> Peer::peers(3);
+int Peer::id_gen = 0;
 
 atomic<int> counter{0}; // Message num for debugging
 
 
 int main(){
 
-    // Set peer ID
-    int ID{};
-    for (Peer& p : Peer::peers) {
-        p.SetID(ID++);
-    }
 
     // Launch and join threads
-    vector<thread> threads;
     for (Peer& p : Peer::peers) {
-        threads.emplace_back(&Peer::MessageLoop, &p);
+        p.InitThread();
     }
 
-    for (thread& t : threads) {
-        t.join();
+    for (Peer& p : Peer::peers) {
+        p.JoinThread();
     }
 
     return 0;
@@ -153,7 +152,6 @@ void Peer::ReadMessages(){
 
 };
 
-
 void Peer::Broadcast(){
     // Broadcast 1 message to all other peers
     int target = rand() % Peer::peers.size();
@@ -161,4 +159,12 @@ void Peer::Broadcast(){
 
     peers[target].InsertMessages(this->id_, 1);
     peers[3 - this->id_ - target].InsertMessages(this->id_, 1); 
+}
+
+void Peer::InitThread(){
+    this->t = thread(&Peer::MessageLoop, this);
+}
+
+void Peer::JoinThread(){
+    if (this->t.joinable()) this->t.join();
 }
