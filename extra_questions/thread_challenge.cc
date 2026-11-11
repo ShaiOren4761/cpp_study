@@ -31,7 +31,7 @@ class Peer{
 
         // Constructors Destructor
         Peer() : id_(id_gen++) {}
-        ~Peer() { t.~thread(); }
+        ~Peer() = default;
 
         // methods
         void MessageLoop();
@@ -41,6 +41,7 @@ class Peer{
         void Broadcast();
         void InitThread();
         void JoinThread();
+        void StopThread();
 
         // getter setter
         int GetID() {return this->id_;}
@@ -52,6 +53,7 @@ class Peer{
         int id_ = -1;
         queue<string>inbox_;
         thread t;
+        atomic<bool>is_running_{true};
         
         // thread safety tools
         mutex my_mutex_;
@@ -80,22 +82,28 @@ int main(){
     while(!interrupt_flag.load()){
         this_thread::sleep_for(chrono::milliseconds(50));
     }
+    cout << "\nInterrupt! Stopping peers.\n";
+    // Exit threads
+    for (Peer& p : Peer::peers) {
+        p.StopThread();
+    }
 
     // Join threads to allow graceful exit
     for (Peer& p : Peer::peers) {
         p.JoinThread();
     }
-
+    cout << "\nPeers have stopped.\n";
     return 0;
 }
 
 
 void Peer::MessageLoop(){
 
-    while(true){
+    while(is_running_){
         if (rand()%2 == 0) this->SendMessages(); else this->Broadcast();
         this->ReadMessages();
     }
+
 }
 
 void Peer::SendMessages(){ // sender asks target to place X messages in their queue
@@ -142,7 +150,7 @@ void Peer::ReadMessages(){
     { // lock scope start
 
         unique_lock<mutex>lock(this->my_mutex_); // Wait for other treads to release access. Block once reading.
-        this->cv_.wait(lock, [this] {return !inbox_.empty();});
+        this->cv_.wait(lock, [this] {return !inbox_.empty() || !is_running_;});
 
         cout << this->id_ << " is reading messages in queue " << "\n";
         
@@ -174,11 +182,17 @@ void Peer::JoinThread(){
     if (this->t.joinable()) this->t.join();
 }
 
+void Peer::StopThread(){
+    {
+        lock_guard<mutex> lock(my_mutex_);
+        this->is_running_ = false;
+    }
+
+    cv_.notify_one();
+}
+
 void HandleSignal(int signal){
-    cout << "Interrupt!";
-    Peer::peers[0].~Peer();
-    Peer::peers[1].~Peer();
-    Peer::peers[2].~Peer();
+    interrupt_flag.store(true);
 }
 
 
