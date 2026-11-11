@@ -15,19 +15,19 @@ A.2. Change the implementation so that a thread can send a message in broadcast 
 
 #include <iostream>
 #include <thread>
-#include <vector>
 #include <mutex>
 #include <condition_variable>
 #include <atomic>
 #include <cstdlib>
 #include <queue>
 #include <csignal>
+#include <chrono>
 using namespace std;
 
 
 class Peer{
     public:
-        static vector<Peer>peers; // Do not resize during runtime, papa GPT says it's not safe with running threads.
+        static Peer peers[3];
 
         // Constructors Destructor
         Peer() : id_(id_gen++) {}
@@ -59,12 +59,14 @@ class Peer{
                     
 };
 
-// Declare in class, define in namespace, use in Main -> Profit
-vector<Peer> Peer::peers(3);
+// Peer statis members init
 int Peer::id_gen = 0;
+Peer Peer::peers[3];
 
 atomic<int> counter{0}; // Message num for debugging
+atomic<bool> interrupt_flag = false;
 
+void HandleSignal(int signal);
 
 int main(){
 
@@ -72,7 +74,14 @@ int main(){
     for (Peer& p : Peer::peers) {
         p.InitThread();
     }
+    
+    // Wait for user interrupt (No other way to stop the program)
+    signal(SIGINT, HandleSignal);
+    while(!interrupt_flag.load()){
+        this_thread::sleep_for(chrono::milliseconds(50));
+    }
 
+    // Join threads to allow graceful exit
     for (Peer& p : Peer::peers) {
         p.JoinThread();
     }
@@ -90,7 +99,7 @@ void Peer::MessageLoop(){
 }
 
 void Peer::SendMessages(){ // sender asks target to place X messages in their queue
-    int target = rand() % Peer::peers.size();
+    int target = rand() % 3;
     int amount_msg_total;
     int amount_msg_t1;
     int amount_msg_t2;        
@@ -105,7 +114,7 @@ void Peer::SendMessages(){ // sender asks target to place X messages in their qu
     amount_msg_t2 = amount_msg_total - amount_msg_t1;
     
     // Phase 3: Roll first target
-    while (target == this->id_) target = rand() % Peer::peers.size();
+    while (target == this->id_) target = rand() % 3;
     
     // Phase 4: send messages
     if (amount_msg_t1) peers[target].InsertMessages(this->id_, amount_msg_t1);
@@ -149,8 +158,8 @@ void Peer::ReadMessages(){
 
 void Peer::Broadcast(){
     // Broadcast 1 message to all other peers
-    int target = rand() % Peer::peers.size();
-    while (target == this->id_) target = rand() % Peer::peers.size();
+    int target = rand() % 3;
+    while (target == this->id_) target = rand() % 3;
 
      cout << this->id_ << " is broadcasting to all peers" << "\n";
     peers[target].InsertMessages(this->id_, 1);
@@ -164,3 +173,12 @@ void Peer::InitThread(){
 void Peer::JoinThread(){
     if (this->t.joinable()) this->t.join();
 }
+
+void HandleSignal(int signal){
+    cout << "Interrupt!";
+    Peer::peers[0].~Peer();
+    Peer::peers[1].~Peer();
+    Peer::peers[2].~Peer();
+}
+
+
