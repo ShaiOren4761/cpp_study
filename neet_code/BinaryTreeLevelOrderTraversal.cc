@@ -1,5 +1,6 @@
 #include <iostream>
 #include <vector>
+#include <queue>
 using namespace std;
 
 struct TreeNode {
@@ -13,34 +14,42 @@ struct TreeNode {
 
 vector<vector<int>> levelOrder(TreeNode* root) {
 
-    // init root -> [[root]], pointers -> left, right of root
-
-    // iterate -> create new vector<int> of vals, add final vector<int> to output. collect pointers of each node for next iteration.
-    // while pointers - run.
-
     if (!root) return {};
 
     vector<vector<int>> levels;
+    levels.push_back({root->val});
+
+    queue<TreeNode*> pointers;
+    if (root->left) pointers.push(root->left);
+    if (root->right) pointers.push(root->right);
+    if (pointers.empty()) return levels;
+    pointers.push(nullptr); // sentinel
+
     vector<int> vals;
-    levels.emplace_back(root->val);
+    while (true){
+        TreeNode* front = pointers.front();
 
-    vector<TreeNode*> pointers;
-    if (root->left) pointers.push_back(root->left);
-    if (root->right) pointers.push_back(root->right);
-    pointers.push_back(nullptr); // sentinel
-
-    while (!pointers.empty()){
-        while (pointers.front() != nullptr){
-            vals.push_back(pointers.front().val);
+        vals.push_back(front->val);
+        if (front->left) pointers.push(front->left);
+        if (front->right) pointers.push(front->right);
+        pointers.pop(); 
+        
+        if (pointers.front() == nullptr){
+            pointers.pop();
+            levels.push_back(vals); // Add current values
+            if (pointers.empty()) break; // No values added, traversal finished.
+            pointers.push(nullptr); // new sentinel
+            vals.clear(); // restart val list
         }
-        vals.clear();
     }
-
+    
     return levels;
 }
 
 
 int main(){
+
+  
     auto printLevels = [](const vector<vector<int>>& levels) {
         cout << "[";
         for (size_t i = 0; i < levels.size(); i++) {
@@ -54,7 +63,6 @@ int main(){
         }
         cout << "]";
     };
-
     auto test = [&](const char* name, TreeNode* root,
                     vector<vector<int>> expected) {
         auto actual = levelOrder(root);
