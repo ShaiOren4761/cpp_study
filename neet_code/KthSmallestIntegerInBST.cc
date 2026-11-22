@@ -23,7 +23,7 @@ int main(){
 }
 
 int kthSmallest(TreeNode* root, int k) {
-    int min = 10001; // out of range val
+    int min = 123; // out of range val
     int* minptr = &min;
     int* kptr = &k;
 
@@ -33,7 +33,7 @@ int kthSmallest(TreeNode* root, int k) {
 }
 
 void inOrder(TreeNode* root, int* k, int* min){
-    if (!root || (*k)) return;
+    if (!root || !*k) return;
     
     inOrder(root->left, k, min);
 
@@ -43,5 +43,4 @@ void inOrder(TreeNode* root, int* k, int* min){
     }
 
     inOrder(root->right, k, min);
-    
 }
