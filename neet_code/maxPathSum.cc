@@ -38,7 +38,6 @@ pair<int,int> solve(TreeNode* root){
     return pair<int,int>{extend,overall};
 }
 
-
 /*
 must extend - 
 take the current nodes val and add it to both existing paths in left and right tree, take the max result. Meaning we "join" the best path we can. 
