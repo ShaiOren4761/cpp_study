@@ -1,14 +1,15 @@
 #include <iostream>
 #include <vector>
+#include <climits>
+#include <queue>
 
 using namespace std;
 
-class Solution {
-public:
-    int networkDelayTime(vector<vector<int>>& times, int n, int k) {
-        return 0;
-    }
-};
+using Entry = pair<int,int>;
+using AdjLst = vector<vector<Entry>>; // for each vertex, have a list of pairs - {adj, weight}
+using MinHeap = priority_queue<Entry, vector<Entry>, greater<Entry>>;
+
+
 
 void printGraph(const vector<vector<int>>& graph) {
     for (const auto& edge : graph) {
@@ -17,23 +18,54 @@ void printGraph(const vector<vector<int>>& graph) {
     }
 }
 
+AdjLst initAdjList(vector<vector<int>>& graph, int n){
+    AdjLst adj(n + 1);
 
-void Dijkstra(vector<vector<int>>& graph){
-    // convert to adj list - for each vertex store adj with existing weight between them
-    // init dist pair vector - all max_int
-    // init min heap with root
+    for (auto& edge : graph){
+        adj[edge[0]].push_back({edge[1], edge[2]});
+    }
 
-    // loop:
-        // pop for PQ - vertex is finalized
-        // relax neighbors
-            // for each neighbor -
-            //  if dist[v] + adj[v][neighbor][1] < dist[neighbor]
-            //  dist[neighbor] = dist[v] + adj[v][neighbor][1]
-            //  push
-    
+    return adj;
 }
 
 
+int networkDelayTime(vector<vector<int>>& times, int n, int k) {
+    // convert to adj list - for each vertex store adj with existing weight between them
+    AdjLst adj = initAdjList(times, n);
+    // init dist pair vector - all max_int
+    vector<int> dist(n + 1, INT_MAX);
+    // init min heap with root
+    MinHeap pq;
+
+    // init root (path len 0, enter into PQ)
+    dist[k] = 0;
+    pq.push({0, k});
+
+    while (!pq.empty()){
+        auto [distance_u, u] = pq.top();
+        pq.pop();
+        if (dist[u] < distance_u) continue; // Outdated entry
+        
+        // Relax all adj of u
+        for (auto [adj, weight_adj] : adj[u]){
+
+            if (distance_u + weight_adj < dist[adj]){
+
+                int newDist = distance_u + weight_adj;
+                dist[adj] = newDist;
+                pq.push({newDist, adj});
+            }
+        }
+    }
+
+    // return max path length. If unreachable vertex is found return -1.
+    int result = 0;
+    for (int i = 1; i < dist.size(); i++){
+        if (dist[i] == INT_MAX) return -1;
+        if (dist[i] > result) result = dist[i];
+    }
+    return result;
+}
 
 int main(){
     vector<vector<int>> times = {
@@ -49,6 +81,7 @@ int main(){
     int n = 5; // Number of vertices
     int k = 1; // Source vertex
 
-    printGraph(times);
+    //printGraph(times);
+    cout << networkDelayTime(times, n, k) << "\n";
     return 0;
 }
